@@ -1,0 +1,22 @@
+{
+  "vehicles": 20,
+  "steps": 180,
+  "dt": 0.1,
+  "history": 10,
+  "horizon": 10,
+  "bad_duration": 3,
+  "bad_sinr": 8.0,
+  "cell_capacity": 9.0,
+  "attack_fraction": 0.2,
+  "attack_offset": 250.0,
+  "seed": 42,
+  "hidden": 32,
+  "epochs": 8,
+  "batch_size": 32,
+  "learning_rate": 0.002,
+  "stride": 5,
+  "handover_margin": 3.0,
+  "dwell_seconds": 1.0,
+  "risk_threshold": 0.5,
+  "confidence_threshold": 0.6
+}

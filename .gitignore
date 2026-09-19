@@ -1,0 +1,55 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.egg-info/
+outputs/
+data/
+*.net.xml
+node_modules/
+.qa/
+
+# Generated presentation package and archives (rebuild from source)
+midsem/
+*.zip
+*.7z
+*.tar
+*.gz
+
+# Credentials and local environment settings
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+credentials.json
+secrets.json
+.aws/
+.ssh/
+
+# Local tools, editors, build outputs and temporary files
+.codex/
+.agents/
+.idea/
+.vscode/
+venv/
+env/
+build/
+dist/
+.coverage
+htmlcov/
+*.log
+*.tmp
+*.bak
+Thumbs.db
+.DS_Store
+
+# Generated model and numerical artifacts
+*.pt
+*.pth
+*.onnx
+*.npz
+*.npy
