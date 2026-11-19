@@ -1,0 +1,15 @@
+<configuration>
+    <input>
+        <net-file value="road.net.xml"/>
+        <route-files value="road.rou.xml"/>
+    </input>
+    <time>
+        <step-length value="0.1"/>
+    </time>
+    <output>
+        <fcd-output value="sumo-fcd.xml"/>
+    </output>
+    <report>
+        <no-step-log value="true"/>
+    </report>
+</configuration>

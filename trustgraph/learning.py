@@ -49,9 +49,10 @@ def evaluate(model, loader, class_weights=None):
         n += len(target['load'])
         mask = target['risk_mask'].bool()
         for key in ['risk', 'attack']:
-            values = target[key][mask] if key == 'risk' else target[key]
+            metric_mask = mask if key == 'risk' else target.get('vehicle_mask')
+            values = target[key] if metric_mask is None else target[key][metric_mask.bool()]
             p = torch.sigmoid(prediction[key + '_logits'])
-            p = p[mask] if key == 'risk' else p
+            p = p if metric_mask is None else p[metric_mask.bool()]
             collected[key].append(values.numpy().ravel())
             collected[key + '_p'].append(p.numpy().ravel())
         collected['load'].append(target['load'].numpy().ravel())

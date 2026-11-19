@@ -26,7 +26,7 @@ Vehicles report mobility and radio observations. A temporal graph model predicts
 
 ## Implementation status
 
-This repository contains a runnable research prototype and a real SUMO mobility milestone. **The learning and closed-loop network experiments currently use a simplified synthetic radio environment, not Simu5G.** SUMO mobility and synthetic network experiments are separate commands; the SUMO CSV is not silently passed off as wireless simulation data.
+This repository contains two experimental paths. The original Python environment supplies the synthetic midsemester demo. The newer SUMO, Veins and Simu5G path provides synchronized radio telemetry, simulator-trained graphs and a live candidate handover policy. See [NR training and control](docs/NR_TRAINING_AND_CONTROL.md) to reproduce the simulator experiments.
 
 | Component | Status |
 |---|---|
@@ -38,8 +38,8 @@ This repository contains a runnable research prototype and a real SUMO mobility 
 | Serving-link risk, future load, attack-probability heads | Implemented |
 | Hysteresis, dwell time, target capacity reservation, fallback | Implemented |
 | Checkpoints, inference CLI, local HTTP inference service | Implemented |
-| Paired closed-loop policy evaluation and JSON/CSV reports | Implemented in synthetic environment |
-| Veins / INET / Simu5G telemetry and real gNB handover adapter | Not implemented or validated |
+| Paired closed-loop policy evaluation and JSON/CSV reports | Synthetic demo and two-gNB Simu5G corridor |
+| Veins / INET / Simu5G telemetry and gNB handover adapter | Verified with live policy requests on Simu5G candidates |
 | Other attacks, QASP reproduction, OSM scenario, PlutoSDR | Later milestones |
 
 No improvement over the baseline is presumed. These small experiments verify software operation; they are not thesis results.

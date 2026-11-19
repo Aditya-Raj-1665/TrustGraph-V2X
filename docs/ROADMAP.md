@@ -10,13 +10,38 @@
 6. Controller with candidate eligibility, hysteresis, dwell time, capacity reservations, and uncertainty fallback.
 7. Synthetic closed-loop matched-seed evaluation and external inference API.
 
-## Next: real cellular simulation
+## Verified cellular baseline
 
-Acceptance: a SUMO-driven vehicle changes serving gNB in Simu5G, with synchronized traffic, radio and handover event logs. A Python model command must cause an actual completed handover; a returned target index alone does not satisfy this milestone.
+OMNeT++ 6.4.0, INET 4.7.0 and Simu5G 1.8.1 are built under WSL2. A moving
+NR vehicle completed a conventional handover from gNB 1 to gNB 2, while a
+stationary control stayed attached to gNB 1. See [the run instructions and
+evidence](NETWORK_STACK.md).
+
+## Verified SUMO and cellular co-simulation
+
+A single SUMO car moved through Veins and completed a Simu5G handover from
+gNB 1 to gNB 2 with packet delivery before and after the change. The run
+verified the car's identity and synchronized position records. See the
+[co-simulation run and evidence](SUMO_NR.md).
 
 Use roadside gNBs as the initial interpretation of the project's RSUs. If RSUs instead host applications/edge compute behind the cellular network, model association and compute load separately from radio handover.
 
-The software libraries need installation/building under WSL and validation as a compatible set. No uncompiled placeholder C++ adapter is presented as a completed simulator integration.
+The verified run exports synchronized SUMO motion, NR signal quality, cell
+resource-block utilization, and the exact handover event to one CSV. The
+[simulator training and control milestone](NR_TRAINING_AND_CONTROL.md)
+extends this to a batch with up to four vehicles and a live model that can
+request or defer the simulator's handover candidate.
+
+The eight-car congestion test verified queue buildup during periods when
+the other cell had spare capacity. TrustGraph matched the load-aware rule,
+reduced rapid return handovers relative to native control, and increased
+total overload duration in this suite. The follow-up collected 12 runs across
+light, moderate, and high demand, including a case with spare capacity at
+gNB 2 after three cars moved. Retraining beat persistence on congested
+development windows. An opt-in TrustGraph proposal completed a live handover
+about one second earlier. It improved delivery relative to the development
+baselines, with higher overload duration. The separate final comparison uses
+new seeds and packet rates. See the [run commands and results](NR_TRAINING_AND_CONTROL.md).
 
 ## Then: real telemetry and general graph schema
 
