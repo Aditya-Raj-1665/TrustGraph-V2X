@@ -58,7 +58,7 @@ def window_load(vector, cell, direction, blocks_per_slot, ticks):
     ]
 
 
-def export(directory):
+def export(directory, verify_display=False):
     log = (directory / 'run.log').read_text(encoding='utf-8')
     vector = directory / 'handover.vec'
     with vector.open(encoding='utf-8') as stream:
@@ -72,6 +72,14 @@ def export(directory):
     association = serving_cells(vector, NODE)
     if not association or association[0] != (0.1, 1) or any(cell not in CELLS for _, cell in association):
         raise ValueError('Unexpected NR association sequence')
+    if verify_display:
+        displayed = vector_samples(vector, '.mobility', 'displayedServingCell', NODE)
+        # The initial color is applied on the first mobility callback after
+        # attachment. Subsequent changes come directly from the RRC signal.
+        if (not displayed or displayed[0][1] != association[0][1]
+                or not 0 <= displayed[0][0] - association[0][0] <= 0.100001
+                or displayed[1:] != association[1:]):
+            raise ValueError('SUMO display and Simu5G serving-cell changes disagree')
     transitions = [(time, source, target) for (_, source), (time, target)
                    in zip(association, association[1:]) if source != target]
     ue_id, beacons = radio_log(log, transitions)
@@ -147,4 +155,6 @@ def export(directory):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('directory', type=Path, help='Directory with the verified co-simulation outputs')
-    print(export(parser.parse_args().directory))
+    parser.add_argument('--verify-display', action='store_true', help='Verify the SUMO overlay update times')
+    args = parser.parse_args()
+    print(export(args.directory, args.verify_display))

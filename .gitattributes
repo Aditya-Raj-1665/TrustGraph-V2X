@@ -1,2 +1,5 @@
 # WSL scripts must retain Unix line endings after a Windows checkout.
 *.sh text eol=lf
+docker/assets/road.net.xml -text
+docker/assets/*.pt binary
+docker/assets/SHA256SUMS text eol=lf

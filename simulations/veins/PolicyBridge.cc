@@ -3,6 +3,7 @@
 #include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
 #include <thread>
 #include <vector>
 
@@ -22,9 +23,11 @@ class PolicyBridge : public cSimpleModule, public cListener
 {
     cMessage *sampleTimer = nullptr;
     cMessage *earlyTimer = nullptr;
-    cModule *mac[2]{};
-    double blocks[2]{};
-    long slots[2]{};
+    cMessage *campusTimer = nullptr;
+    int cellCount = 2;
+    cModule *mac[4]{};
+    double blocks[4]{};
+    long slots[4]{};
     int tick = 1;
     long serial = 0;
     simtime_t lastEarly = SimTime(-2);
@@ -32,6 +35,7 @@ class PolicyBridge : public cSimpleModule, public cListener
     cOutVector gnb2Backlog{"gnb2DlBacklogBytes"};
 
     void proposeEarly();
+    void proposeCampus();
 
     static int64_t queuedBytes(cModule *module)
     {
@@ -47,10 +51,14 @@ protected:
     int numInitStages() const override { return inet::NUM_INIT_STAGES; }
     void initialize(int stage) override
     {
-        if (stage != inet::NUM_INIT_STAGES - 1 || (!enabled() && !par("recordBacklog").boolValue()))
+        if (stage != inet::NUM_INIT_STAGES - 1 ||
+            (!enabled() && !par("recordBacklog").boolValue() && !campusTelemetry()))
             return;
-        for (int cell = 0; cell < 2; ++cell) {
-            mac[cell] = getParentModule()->getModuleByPath(cell == 0 ? ".gnb1.cellularNic.mac" : ".gnb2.cellularNic.mac");
+        cellCount = 2 + getParentModule()->par("thirdCell").boolValue()
+                      + getParentModule()->par("fourthCell").boolValue();
+        for (int cell = 0; cell < cellCount; ++cell) {
+            const auto path = ".gnb" + std::to_string(cell + 1) + ".cellularNic.mac";
+            mac[cell] = getParentModule()->getModuleByPath(path.c_str());
             if (!mac[cell])
                 throw cRuntimeError("Missing gNB MAC for policy telemetry");
             mac[cell]->subscribe("avgServedBlocksDl", this);
@@ -58,6 +66,8 @@ protected:
         sampleTimer = new cMessage("policyTelemetry");
         if (par("earlyOffload").boolValue())
             earlyTimer = new cMessage("policyEarlyOffload");
+        if (campusPolicy())
+            campusTimer = new cMessage("campusPolicyReview");
         scheduleAt(SimTime(100001, SIMTIME_US), sampleTimer);
     }
 
@@ -73,7 +83,9 @@ protected:
 
     void registerBlocks(cComponent *source, double value)
     {
-        int cell = source == mac[0] ? 0 : 1;
+        const auto cell = std::find(mac, mac + cellCount, source) - mac;
+        if (cell == cellCount)
+            return;
         blocks[cell] += value;
         ++slots[cell];
     }
@@ -84,8 +96,12 @@ protected:
             proposeEarly();
             return;
         }
-        double load[2]{};
-        for (int cell = 0; cell < 2; ++cell) {
+        if (message == campusTimer) {
+            proposeCampus();
+            return;
+        }
+        double load[4]{};
+        for (int cell = 0; cell < cellCount; ++cell) {
             if (slots[cell] != 100)
                 throw cRuntimeError("Expected 100 MAC slots per policy observation");
             load[cell] = blocks[cell] / (par("rbCapacity").intValue() * slots[cell]);
@@ -97,7 +113,7 @@ protected:
             gnb1Backlog.record(queuedBytes(mac[0]->getParentModule()));
             gnb2Backlog.record(queuedBytes(mac[1]->getParentModule()));
         }
-        if (enabled())
+        if (enabled() || campusTelemetry())
         for (int index = 0; index < network->getSubmoduleVectorSize("car"); ++index) {
             auto *car = network->getSubmodule("car", index);
             if (car == nullptr)
@@ -106,15 +122,22 @@ protected:
             auto *rrc = check_and_cast<simu5g::ConnectionControlUe *>(
                 car->getModuleByPath(".cellularNic.rrc.nrConnectionControl"));
             const auto& position = mobility->getCurrentPosition();
-            EV_INFO << "TRUSTGRAPH_OBS " << tick << " " << simu5g::num(rrc->getNodeId())
-                    << " " << position.x - 25 << " " << 25 - position.y
-                    << " " << mobility->getCurrentVelocity().length()
-                    << " " << simu5g::num(rrc->getServingNodeId())
-                    << " " << load[0] << " " << load[1] << "\n";
+            std::ostringstream row;
+            row << (campusTelemetry() ? "TRUSTGRAPH_CAMPUS " : "TRUSTGRAPH_OBS ")
+                << tick << " " << simu5g::num(rrc->getNodeId())
+                << " " << (campusTelemetry() ? position.x : position.x - 25)
+                << " " << (campusTelemetry() ? position.y : 25 - position.y)
+                << " " << mobility->getCurrentVelocity().length()
+                << " " << simu5g::num(rrc->getServingNodeId());
+            for (int cell = 0; cell < cellCount; ++cell)
+                row << " " << load[cell];
+            EV_INFO << row.str() << "\n";
         }
         if (earlyTimer && tick % 10 == 0 && load[0] > 0.8 && load[1] <= 0.6 && simTime() - lastEarly >= SimTime(2))
             // Native RRC evaluates each beacon 10 us after arrival.
             scheduleAt(simTime() + SimTime(20, SIMTIME_US), earlyTimer);
+        if (campusTimer && tick >= 20 && tick % 10 == 0)
+            scheduleAt(simTime() + SimTime(20, SIMTIME_US), campusTimer);
         ++tick;
         scheduleAt(simTime() + SimTime(100, SIMTIME_MS), message);
     }
@@ -127,10 +150,12 @@ protected:
     }
 
 public:
-    ~PolicyBridge() override { cancelAndDelete(sampleTimer); cancelAndDelete(earlyTimer); }
+    ~PolicyBridge() override { cancelAndDelete(sampleTimer); cancelAndDelete(earlyTimer); cancelAndDelete(campusTimer); }
     bool enabled() const { return par("enabled").boolValue(); }
+    bool campusTelemetry() const { return par("campusTelemetry").boolValue(); }
+    bool campusPolicy() const { return par("campusPolicy").boolValue(); }
 
-    std::string ask(int ue, int current, int candidate, double *earlyRssi = nullptr)
+    std::string ask(int ue, int current, int candidate, double *earlyRssi = nullptr, int *campusTarget = nullptr)
     {
         Enter_Method_Silent();
         const long sequence = ++serial;
@@ -141,7 +166,9 @@ public:
         {
             std::ofstream stream(temporary);
             stream << sequence << " " << simTime() << " " << ue << " " << current << " " << candidate;
-            if (earlyRssi)
+            if (campusTarget)
+                stream << " campus";
+            else if (earlyRssi)
                 stream << " early";
             stream << "\n";
             if (!stream)
@@ -158,6 +185,8 @@ public:
             long received;
             std::string decision;
             if (stream >> received >> decision && received == sequence) {
+                if (campusTarget && decision == "request" && !(stream >> *campusTarget))
+                    return "fallback_io";
                 if (earlyRssi && decision == "request" && !(stream >> *earlyRssi))
                     return "fallback_io";
                 return decision;
@@ -176,13 +205,33 @@ class PolicyConnectionControl : public simu5g::ConnectionControlUe
     bool deferredOnce = false;
     bool earlyAttempted = false;
     bool earlyHandover = false;
+    simtime_t lastHandover = SimTime(-5);
+
+    PolicyBridge *policyBridge() const
+    {
+        return check_and_cast<PolicyBridge *>(getSimulation()->getSystemModule()->getSubmodule("policy"));
+    }
+
+    void cancelCandidate()
+    {
+        candidateServingNodeId_ = servingNodeId_;
+        candidateServingNodeRssi_ = servingNodeRssi_;
+        updateHysteresisThreshold(servingNodeRssi_);
+        triggeredHandover_.reset();
+    }
 
     void triggerHandover() override
     {
-        auto *bridge = check_and_cast<PolicyBridge *>(getSimulation()->getSystemModule()->getSubmodule("policy"));
+        auto *bridge = policyBridge();
         if (!bridge->enabled() || servingNodeId_ == simu5g::NODEID_NONE ||
             candidateServingNodeId_ == simu5g::NODEID_NONE || servingNodeId_ == candidateServingNodeId_) {
             ConnectionControlUe::triggerHandover();
+            return;
+        }
+        if (bridge->campusPolicy() && simTime() - lastHandover < SimTime(3)
+            && servingNodeRssi_ >= 32 && candidateServingNodeRssi_ < servingNodeRssi_ + 12) {
+            EV_INFO << "TRUSTGRAPH_COOLDOWN " << simTime() << " " << simu5g::num(nodeId_) << "\n";
+            cancelCandidate();
             return;
         }
         auto decision = bridge->ask(simu5g::num(nodeId_), simu5g::num(servingNodeId_),
@@ -194,10 +243,7 @@ class PolicyConnectionControl : public simu5g::ConnectionControlUe
                 << " " << decision << "\n";
         if (decision == "defer") {
             deferredOnce = true;
-            candidateServingNodeId_ = servingNodeId_;
-            candidateServingNodeRssi_ = servingNodeRssi_;
-            updateHysteresisThreshold(servingNodeRssi_);
-            triggeredHandover_.reset();
+            cancelCandidate();
             return;
         }
         policyHandover = decision == "request";
@@ -210,7 +256,10 @@ class PolicyConnectionControl : public simu5g::ConnectionControlUe
 
     void doHandover() override
     {
+        if (policyBridge()->campusPolicy())
+            emit(registerSignal("trustGraphAttribution"), static_cast<intval_t>(policyHandover));
         ConnectionControlUe::doHandover();
+        lastHandover = simTime();
         if (policyHandover)
             EV_INFO << "TRUSTGRAPH_REQUEST_COMPLETED " << simTime() << " " << simu5g::num(nodeId_)
                     << " " << simu5g::num(servingNodeId_) << "\n";
@@ -227,6 +276,33 @@ public:
     {
         return (handoverStarter_ && handoverStarter_->isScheduled()) ||
                (handoverTrigger_ && handoverTrigger_->isScheduled());
+    }
+
+    void reviewCampus(PolicyBridge *bridge)
+    {
+        Enter_Method_Silent();
+        if (!enableHandover_ || !isNr_ || servingNodeId_ == simu5g::NODEID_NONE || hasPendingHandover()
+            || simTime() - lastHandover < SimTime(3))
+            return;
+        int target = 0;
+        double strength = 0;
+        const int current = simu5g::num(servingNodeId_);
+        auto decision = bridge->ask(simu5g::num(nodeId_), current, 0, &strength, &target);
+        if (decision != "request" || target < 1 || target > 4 || target == current
+            || !std::isfinite(strength) || strength < std::max(36.0, minRssi_))
+            return;
+        policyHandover = earlyHandover = true;
+        candidateServingNodeId_ = static_cast<simu5g::MacNodeId>(target);
+        candidateServingNodeRssi_ = strength;
+        triggeredHandover_ = std::make_pair(servingNodeId_, candidateServingNodeId_);
+        EV_INFO << "TRUSTGRAPH_DECISION " << simTime() << " " << simu5g::num(nodeId_)
+                << " " << current << " " << target << " request\n";
+        ConnectionControlUe::triggerHandover();
+        if (!handoverTrigger_ || !handoverTrigger_->isScheduled()) {
+            EV_INFO << "TRUSTGRAPH_REQUEST_REJECTED " << simTime() << " " << simu5g::num(nodeId_) << "\n";
+            policyHandover = earlyHandover = false;
+            cancelCandidate();
+        }
     }
 
     bool proposeOffload(PolicyBridge *bridge)
@@ -255,16 +331,26 @@ public:
         if (!handoverTrigger_ || !handoverTrigger_->isScheduled()) {
             EV_INFO << "TRUSTGRAPH_REQUEST_REJECTED " << simTime() << " " << simu5g::num(nodeId_) << "\n";
             earlyHandover = policyHandover = false;
-            candidateServingNodeId_ = servingNodeId_;
-            candidateServingNodeRssi_ = servingNodeRssi_;
-            updateHysteresisThreshold(servingNodeRssi_);
-            triggeredHandover_.reset();
+            cancelCandidate();
         }
         return true;
     }
 };
 
 Define_Module(PolicyConnectionControl);
+
+void PolicyBridge::proposeCampus()
+{
+    auto *network = getParentModule();
+    for (int index = 0; index < network->getSubmoduleVectorSize("car"); ++index) {
+        auto *car = network->getSubmodule("car", index);
+        if (!car)
+            continue;
+        auto *rrc = check_and_cast<PolicyConnectionControl *>(
+            car->getModuleByPath(".cellularNic.rrc.nrConnectionControl"));
+        rrc->reviewCampus(this);
+    }
+}
 
 void PolicyBridge::proposeEarly()
 {

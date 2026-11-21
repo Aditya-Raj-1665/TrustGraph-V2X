@@ -7,7 +7,7 @@ from torch import nn
 
 
 class TrustGraph(nn.Module):
-    def __init__(self, hidden=32, trust_aware=True, residual_load=False):
+    def __init__(self, hidden=32, trust_aware=True, residual_load=False, forecast_radio=False):
         super().__init__()
         self.hidden = hidden
         self.trust_aware = trust_aware
@@ -22,6 +22,10 @@ class TrustGraph(nn.Module):
         self.cell_gru = nn.GRUCell(hidden * 2, hidden)
         self.risk_head = nn.Linear(hidden, 1)
         self.load_head = nn.Sequential(nn.Linear(hidden, 1), nn.Softplus())
+        self.radio_head = nn.Linear(3 * hidden, 1) if forecast_radio else None
+        if self.radio_head is not None:
+            nn.init.zeros_(self.radio_head.weight)
+            nn.init.zeros_(self.radio_head.bias)
         if residual_load:
             self.load_head[1] = nn.Tanh()
             nn.init.zeros_(self.load_head[0].weight)
@@ -53,8 +57,14 @@ class TrustGraph(nn.Module):
         if self.residual_load:
             recent_load = cell[:, -5:, :, 1].mean(dim=1)
             predicted_load = (recent_load + 0.25 * self.load_blend * predicted_load).clamp(0, 1)
-        return {'risk_logits': self.risk_head(hv).reshape(batch, vehicles),
-                'load': predicted_load, 'attack_logits': attack}
+        result = {'risk_logits': self.risk_head(hv).reshape(batch, vehicles),
+                  'load': predicted_load, 'attack_logits': attack}
+        if self.radio_head is not None:
+            vehicle_state = hv.reshape(batch, vehicles, 1, self.hidden).expand(-1, -1, cells, -1)
+            cell_state = hc.reshape(batch, 1, cells, self.hidden).expand(-1, vehicles, -1, -1)
+            delta = self.radio_head(torch.cat([vehicle_state, cell_state, e], dim=-1)).squeeze(-1)
+            result['radio'] = edge[:, -1, :, :, 0] + delta
+        return result
 
 
 def multitask_loss(prediction, target, class_weights=None, load_weight=1., current_load=None):

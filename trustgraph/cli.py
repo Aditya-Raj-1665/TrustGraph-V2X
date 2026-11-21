@@ -38,15 +38,8 @@ def main():
     service = sub.add_parser('serve', help='Serve the local inference API for a simulator adapter')
     service.add_argument('--checkpoint', required=True)
     service.add_argument('--port', type=int, default=8765)
-    midsem = sub.add_parser('midsem', help='Build the offline demo, slides, report and measured replay data')
-    midsem.add_argument('--project', default=str(Path(__file__).resolve().parents[1]))
-    midsem.add_argument('--output', default='midsem')
     args = parser.parse_args()
     from .config import Config
-    if args.command == 'midsem':
-        from .midsem import build_package
-        print(json.dumps(build_package(args.project, args.output), indent=2))
-        return
     if args.command == 'serve':
         from .service import serve
         serve(args.checkpoint, args.port)

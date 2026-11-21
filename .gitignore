@@ -8,8 +8,7 @@ data/
 node_modules/
 .qa/
 
-# Generated presentation package and archives (rebuild from source)
-midsem/
+# Local archives
 *.zip
 *.7z
 *.tar
@@ -53,3 +52,7 @@ Thumbs.db
 *.onnx
 *.npz
 *.npy
+
+# Frozen inputs for the Docker campus demo
+!docker/assets/road.net.xml
+!docker/assets/trustgraph-campus.pt

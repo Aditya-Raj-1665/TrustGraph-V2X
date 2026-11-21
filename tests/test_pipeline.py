@@ -129,3 +129,17 @@ def test_auc_ties_and_single_class():
 def test_invalid_config():
     with pytest.raises(ValueError):
         config(attack_fraction=1.5)
+
+
+def test_explanations_do_not_change_actions():
+    c = Config()
+    env = ToyNetwork(c, 1001)
+    for _ in range(40):
+        frame, _ = env.snapshot()
+        prediction = {'risk': np.full(c.vehicles, .95), 'load': frame['load']}
+        basic = choose_targets(frame, c, prediction)
+        explained, decisions = choose_targets(frame, c, prediction, explain=True)
+        np.testing.assert_array_equal(explained, basic)
+        assert [d['target'] for d in decisions] == explained.tolist()
+        assert len(decisions) == c.vehicles
+        env.advance(basic, frame)

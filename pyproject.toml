@@ -19,8 +19,5 @@ trustgraph = "trustgraph.cli:main"
 [tool.setuptools.packages.find]
 include = ["trustgraph*"]
 
-[tool.setuptools.package-data]
-trustgraph = ["web/*"]
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]

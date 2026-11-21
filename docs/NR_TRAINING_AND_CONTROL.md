@@ -1,9 +1,11 @@
-# TrustGraph training and live handover experiment
+# Two-cell training, handover and congestion experiments
+
+This study covers the two-cell corridor and congestion experiments. For the four-station NITK presentation, see the [campus guide](SUMO_NR.md).
 
 ## Simulator data and prediction
 
 The batch uses the pinned SUMO, Veins, INET, OMNeT++, and Simu5G stack documented
-in [SUMO_NR.md](SUMO_NR.md). Twelve 35-second trials vary SUMO travel direction,
+in [the setup guide](NETWORK_STACK.md). Twelve 35-second trials vary SUMO travel direction,
 speed (12–21 m/s), vehicle count (1, 2 or 4), radio seed and downlink inter-packet
 interval (5–20 ms). The route stays on the two-cell corridor. Every car departs
 in the first step and stays in the network for the full observation period.
@@ -33,8 +35,8 @@ defer a move. Simu5G's normal source-cell procedure handles accepted requests.
 The bridge logs the request and checks the completed association. A timeout,
 insufficient evidence or a second deferral uses the native procedure.
 
-This version reviews candidates selected by Simu5G. It cannot originate a
-handover before Simu5G detects a candidate. False-position tests modify the
+The initial comparison in `closed` mode only reviews candidates selected by Simu5G.
+The later early-offload modes can originate proposals before native nomination. False-position tests modify the
 coordinates in the policy worker. SUMO vehicle motion and Simu5G radio
 measurements continue to use the physical positions.
 

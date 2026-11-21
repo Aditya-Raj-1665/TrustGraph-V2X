@@ -1,0 +1,18 @@
+x-campus: &campus
+  image: trustgraph-v2x:campus-1
+  platform: linux/amd64
+  build: .
+  init: true
+  volumes:
+    - ./outputs/docker:/results
+
+services:
+  headless:
+    <<: *campus
+    network_mode: none
+    command: [nitk_ml]
+  gui:
+    <<: *campus
+    command: [nitk_ml_gui]
+    ports:
+      - "127.0.0.1:5900:5900"

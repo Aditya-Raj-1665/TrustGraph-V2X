@@ -14,9 +14,18 @@ import simu5g.stack.rrc.ConnectionControlUe;
 import org.car2x.veins.subprojects.veins_inet.VeinsInetManagerForker;
 import org.car2x.veins.subprojects.veins_inet.VeinsInetMobility;
 
+simple PresentationManager extends VeinsInetManagerForker
+{
+    parameters:
+        bool holdFinalFrame = default(false);
+        @class(PresentationManager);
+}
+
 simple RecordedMobility extends VeinsInetMobility
 {
     parameters:
+        bool showServingCell = default(false);
+        bool captureHandover = default(false);
         @class(RecordedMobility);
 }
 
@@ -38,6 +47,8 @@ simple PolicyBridge
         bool enabled = default(false);
         bool earlyOffload = default(false);
         bool recordBacklog = default(false);
+        bool campusTelemetry = default(false);
+        bool campusPolicy = default(false);
         int rbCapacity = default(50);
         int responseTimeoutMs = default(2000);
         @class(PolicyBridge);
@@ -54,6 +65,8 @@ network TrustGraphRoad
 {
     parameters:
         **.cellularNic.hasSdap = default(true);
+        bool thirdCell = default(false);
+        bool fourthCell = default(false);
     submodules:
         configurator: Ipv4NetworkConfigurator;
         channelControl: LteChannelControl;
@@ -67,8 +80,10 @@ network TrustGraphRoad
         iUpf: Upf;
         gnb1: gNodeB;
         gnb2: gNodeB;
+        gnb3: gNodeB if thirdCell;
+        gnb4: gNodeB if fourthCell;
         policy: PolicyBridge;
-        veinsManager: VeinsInetManagerForker;
+        veinsManager: PresentationManager;
         car[0]: TrustGraphCar;
     connections:
         server.pppg++ <--> Eth10G <--> router.pppg++;
@@ -77,4 +92,11 @@ network TrustGraphRoad
         iUpf.pppg++ <--> Eth10G <--> gnb1.ppp;
         iUpf.pppg++ <--> Eth10G <--> gnb2.ppp;
         gnb1.x2++ <--> Eth10G <--> gnb2.x2++;
+        iUpf.pppg++ <--> Eth10G <--> gnb3.ppp if thirdCell;
+        gnb1.x2++ <--> Eth10G <--> gnb3.x2++ if thirdCell;
+        gnb2.x2++ <--> Eth10G <--> gnb3.x2++ if thirdCell;
+        iUpf.pppg++ <--> Eth10G <--> gnb4.ppp if fourthCell;
+        gnb1.x2++ <--> Eth10G <--> gnb4.x2++ if fourthCell;
+        gnb2.x2++ <--> Eth10G <--> gnb4.x2++ if fourthCell;
+        gnb3.x2++ <--> Eth10G <--> gnb4.x2++ if fourthCell;
 }

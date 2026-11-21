@@ -3,7 +3,8 @@
 set -euo pipefail
 source "$HOME/.nix-profile/etc/profile.d/nix.sh"
 export PATH="$HOME/trustgraph-tools/venv/bin:$PATH"
-export NIX_CONFIG=$'cores = 4\nmax-jobs = 1'
+printf -v NIX_CONFIG 'cores = %s\nmax-jobs = 1' "${TRUSTGRAPH_BUILD_JOBS:-4}"
+export NIX_CONFIG
 mkdir -p "$HOME/trustgraph-simulators"
 cd "$HOME/trustgraph-simulators"
 if [ ! -d .opp_env_workspace ]; then

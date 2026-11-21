@@ -1,0 +1,13 @@
+**
+!Dockerfile
+!docker/
+!docker/**
+!scripts/
+!scripts/*.sh
+!scripts/prepare_nitk_demo.py
+!scripts/verify_nitk_demo.py
+!simulations/
+!simulations/veins/
+!simulations/veins/**
+!trustgraph/
+!trustgraph/*.py
